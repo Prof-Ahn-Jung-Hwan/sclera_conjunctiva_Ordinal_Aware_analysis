@@ -28,16 +28,16 @@ def main():
     for file_path in args.file_paths:
         try:
             df = pd.read_excel(file_path)
-            # 데이터가 어떤 fold에서 왔는지 추적하기 위해 'fold' 열을 추가합니다.
-            # 디렉토리 이름에서 fold 번호를 추출합니다. (e.g., eyedye_few_fold0 -> 0)
+            # Add 'fold' column to track which fold the data came from.
+            # Extract fold number from directory name. (e.g., eyedye_few_fold0 -> 0)
             folder_name = Path(file_path).parent.name
             if "fold" in folder_name:
-                # fold 뒤의 숫자를 추출
+                # Extract number after fold
                 fold_num = folder_name.split("fold")[-1]
                 try:
                     df["fold"] = int(fold_num)
                 except ValueError:
-                    # fold 번호 추출 실패시 파일 순서로 대체
+                    # If fold number extraction fails, use file order as replacement
                     df["fold"] = len(all_dfs)
                     print(f"Warning: Could not extract fold number from {folder_name}, using index {len(all_dfs)}")
             else:
@@ -53,10 +53,10 @@ def main():
         print("No valid files to combine.")
         return
 
-    # 모든 데이터프레임을 하나로 합칩니다.
+    # Combine all DataFrames into one
     combined_df = pd.concat(all_dfs, ignore_index=True)
 
-    # 최종 결과를 새로운 Excel 파일로 저장합니다.
+    # Save final results to new Excel file
     combined_df.to_excel(args.output, index=False)
 
     print(f"\nSuccessfully combined all results into '{args.output}'")

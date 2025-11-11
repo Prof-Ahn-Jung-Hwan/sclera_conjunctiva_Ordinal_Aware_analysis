@@ -8,7 +8,7 @@ echo "Starting few-shot evaluation for image-bins76 model..."
 echo "Cwd: $(pwd)"
 
 # Model configuration
-BINS=76 # image-bins76 모델 사용
+BINS=76 # Use image-bins76 model
 MODEL_TYPE="image-bins${BINS}"
 EPOCHS=60
 start_ib_epoch=31

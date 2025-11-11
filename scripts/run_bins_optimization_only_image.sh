@@ -1,31 +1,31 @@
 #!/bin/bash
-# 파일명: run_bins_optimization_only_image.sh
-# 설명: 이미지만 활용하여 'bins' 하이퍼파라미터 최적화를 실행합니다.
-#       anno data를 사용하지 않고 pure image regression 모델로 최적화를 수행합니다.
+# Filename: run_bins_optimization_only_image.sh
+# Description: Runs 'bins' hyperparameter optimization using only images.
+#       Performs optimization with pure image regression model without using anno data.
 
 set -e
 
-# --- 최적화 설정 ---
-# 1. 결과 폴더 생성
+# --- Optimization settings ---
+# 1. Create result folder
 OUTPUT_DIR="bins_optimization_only_image"
 mkdir -p "${OUTPUT_DIR}"
 
-# --- 데이터베이스 초기화 (Race Condition 방지) ---
+# --- Database initialization (prevent Race Condition) ---
 DB_FILE="${OUTPUT_DIR}/optimization.db"
 echo "Initializing Optuna database at ${DB_FILE} for image-only optimization..."
 python3 -c "
 import optuna
-# 이 코드는 DB가 없으면 생성하고, 있어도 에러를 발생시키지 않습니다.
-# create_study를 바로 호출하여 필요한 모든 테이블을 미리 생성합니다.
+# This code creates DB if it doesn't exist, and doesn't raise an error if it exists.
+# Call create_study directly to pre-create all necessary tables.
 optuna.create_study(storage='sqlite:///${DB_FILE}', study_name='_initialization_dummy_', load_if_exists=True)
 "
 echo "Database initialized."
 
-# 이미지만 사용하는 config 파일 (원본으로 복원)
+# Config file using only images (restored to original)
 CONFIG_TO_OPTIMIZE="configs/ajoumc_rxt50_image.yaml"
 NUM_TRIALS=30 # Original
 
-# GPU 설정 (GPU 1만 사용)
+# GPU configuration (using only GPU 1)
 GPU_ID=1
 NUM_TRIALS=30
 
@@ -36,12 +36,12 @@ echo "##### Number of Trials: ${NUM_TRIALS}"
 echo "##### GPU: ${GPU_ID}"
 echo "####################################################################"
 
-# 최적화 실행 (GPU 1에서만 실행)
+# Run optimization (only on GPU 1)
 echo "Starting optimization for image-only model..."
 echo "Config: ${CONFIG_TO_OPTIMIZE}"
 echo "Output directory: ${OUTPUT_DIR}"
 
-# GPU 1에서 최적화 실행
+# Run optimization on GPU 1
 echo "Starting optimization on GPU 1"
 python optimize_bins.py \
     --config "${CONFIG_TO_OPTIMIZE}" \
@@ -56,7 +56,7 @@ echo -e "\n\n"
 echo "🎉 Image-only optimization task is complete. Displaying final summary..."
 echo "========================================================================"
 
-# 최종 결과 요약 출력
+# Output final result summary
 echo -e "\n--- Summary of Best Parameters for Image-Only Model ---"
 python3 -c "
 import optuna
@@ -93,13 +93,13 @@ try:
     print(f'   - Best Bins: \033[1;33m{best_row[\"Best Bins\"]}\033[0m')
     print(f'   - Trials:    \033[1;36m{best_row[\"Number of Trials\"]}\033[0m')
 
-    # 최적화 히스토리 저장
+    # Save optimization history
     study_names = optuna.study.get_all_study_names(storage=storage_name)
     if study_names:
         study_name = study_names[0]
         study = optuna.load_study(study_name=study_name, storage=storage_name)
         
-        # 결과를 CSV로 저장
+        # Save results to CSV
         trial_data = []
         for trial in study.trials:
             if trial.state == optuna.trial.TrialState.COMPLETE:

@@ -415,22 +415,22 @@ def compare_zero_few_shot_mae(datasets=['eyedye'], model_suffix="image-bins76"):
         few_file = f"external_validation_proceed/{dataset}_{model_suffix}_table1_few_mae_ensemble.xlsx"
         
         try:
-            # Zero shot 결과 읽기
+            # Read zero shot results
             zero_df = pd.read_excel(zero_file)
             zero_ensemble = zero_df[zero_df['Experiment'] == 'Ensemble'].iloc[0]
             
-            # Few shot 결과 읽기
+            # Read few shot results
             few_df = pd.read_excel(few_file)
             few_ensemble = few_df[few_df['Experiment'] == 'Ensemble'].iloc[0]
             
-            # 실제 원본 데이터를 이용한 p-value 계산을 위해 원본 파일 로드
+            # Load original files to calculate p-value using actual original data
             zero_data_file = f"external_validation_proceed/results_zero_shot_{dataset}_{model_suffix}_combined.xlsx"
             few_data_file = f"external_validation_proceed/results_few_shot_{dataset}_{model_suffix}_combined.xlsx"
             
             zero_data_df = pd.read_excel(zero_data_file)
             few_data_df = pd.read_excel(few_data_file)
             
-            # Ensemble MAE를 환자별로 계산
+            # Calculate Ensemble MAE per patient
             zero_ensemble_maes = zero_data_df.groupby('w_filename').apply(
                 lambda g: np.mean(np.abs(g['ground truth'] - g['prediction']))
             ).values
@@ -441,32 +441,32 @@ def compare_zero_few_shot_mae(datasets=['eyedye'], model_suffix="image-bins76"):
             }).reset_index()
             few_ensemble_maes = np.abs(few_ensemble_data['ground truth'] - few_ensemble_data['prediction']).values
             
-            # 두 그룹의 MAE 값들이 동일한 환자들인지 확인하고 paired t-test 수행
+            # Check if MAE values from two groups are from same patients and perform paired t-test
             if len(zero_ensemble_maes) == len(few_ensemble_maes):
-                # Paired t-test 수행
+                # Perform paired t-test
                 t_stat, p_value = stats.ttest_rel(zero_ensemble_maes, few_ensemble_maes)
             else:
-                # Independent t-test 수행 (환자가 다른 경우)
+                # Perform independent t-test (when patients are different)
                 t_stat, p_value = stats.ttest_ind(zero_ensemble_maes, few_ensemble_maes)
             
-            # P-value 형식 지정
+            # Format P-value
             if p_value < 0.001:
                 p_value_str = "<0.001"
             else:
                 p_value_str = f"{p_value:.3f}"
             
-            # Effect size 계산
+            # Calculate effect size
             delta_mae = few_ensemble['MAE'] - zero_ensemble['MAE']
             pooled_std = np.sqrt((np.std(zero_ensemble_maes)**2 + np.std(few_ensemble_maes)**2) / 2)
             cohens_d = abs(delta_mae) / pooled_std if pooled_std > 0 else 0
             
-            # CI 정보 추출
+            # Extract CI information
             zero_ci_lower = zero_ensemble['CI_Lower']
             zero_ci_upper = zero_ensemble['CI_Upper']
             few_ci_lower = few_ensemble['CI_Lower']
             few_ci_upper = few_ensemble['CI_Upper']
             
-            # 유의성 판단
+            # Determine significance
             significance = "Significant" if p_value < 0.05 else "Non-significant"
             
             comparison_results.append({
@@ -509,10 +509,10 @@ def compare_zero_few_shot_confusion_matrix(datasets=['eyedye'], model_suffix="im
         few_file = f"external_validation_proceed/{dataset}_{model_suffix}_table2_few_ext_confusion_ensemble.xlsx"
         
         try:
-            # Zero shot 결과 읽기
+            # Read zero shot results
             zero_df = pd.read_excel(zero_file)
             
-            # Few shot 결과 읽기
+            # Read few shot results
             few_df = pd.read_excel(few_file)
             
             for threshold in thresholds:
@@ -525,7 +525,7 @@ def compare_zero_few_shot_confusion_matrix(datasets=['eyedye'], model_suffix="im
                 zero_row = zero_row.iloc[0]
                 few_row = few_row.iloc[0]
                 
-                # 각 메트릭별 비교
+                # Compare by each metric
                 metrics = ['SENSITIVITY', 'SPECIFICITY', 'PPV', 'NPV', 'ACCURACY', 'F1', 'ROC_AUC']
                 
                 for metric in metrics:
@@ -538,7 +538,7 @@ def compare_zero_few_shot_confusion_matrix(datasets=['eyedye'], model_suffix="im
                         zero_ci = zero_row[zero_ci_col]
                         few_ci = few_row[zero_ci_col]
                         
-                        # CI 파싱
+                        # Parse CI
                         try:
                             zero_ci_parts = zero_ci.replace('(', '').replace(')', '').split('-')
                             few_ci_parts = few_ci.replace('(', '').replace(')', '').split('-')
@@ -548,34 +548,34 @@ def compare_zero_few_shot_confusion_matrix(datasets=['eyedye'], model_suffix="im
                             few_ci_lower = float(few_ci_parts[0])
                             few_ci_upper = float(few_ci_parts[1])
                             
-                            # CI 겹침 확인으로 p-value 추정
+                            # Estimate p-value by checking CI overlap
                             ci_overlap = not (zero_ci_upper < few_ci_lower or few_ci_upper < zero_ci_lower)
                             
-                            # 효과 크기 계산 및 p-value 추정
+                            # Calculate effect size and estimate p-value
                             delta = abs(few_mean - zero_mean)
                             
                             if ci_overlap:
-                                # CI가 겹치면 p-value는 0.05보다 클 가능성
-                                if delta < 0.05:  # 작은 차이
-                                    p_value_estimate = f"{0.200:.3f}"  # 임의로 큰 p-value
+                                # If CI overlaps, p-value is likely greater than 0.05
+                                if delta < 0.05:  # Small difference
+                                    p_value_estimate = f"{0.200:.3f}"  # Arbitrarily large p-value
                                 elif delta < 0.1:
                                     p_value_estimate = f"{0.080:.3f}"
                                 else:
                                     p_value_estimate = f"{0.060:.3f}"
                             else:
-                                # CI가 겹치지 않으면 유의함
-                                if delta > 0.5:  # 매우 큰 효과
+                                # If CI does not overlap, it is significant
+                                if delta > 0.5:  # Very large effect
                                     p_value_estimate = "<0.001"
-                                elif delta > 0.3:  # 큰 효과
+                                elif delta > 0.3:  # Large effect
                                     p_value_estimate = "<0.001"
-                                elif delta > 0.2:  # 중간 효과
+                                elif delta > 0.2:  # Medium effect
                                     p_value_estimate = f"{0.010:.3f}"
-                                elif delta > 0.1:  # 작은 효과
+                                elif delta > 0.1:  # Small effect
                                     p_value_estimate = f"{0.030:.3f}"
-                                else:  # 매우 작은 효과
+                                else:  # Very small effect
                                     p_value_estimate = f"{0.049:.3f}"
                             
-                            # 형식 결정 (ROC_AUC는 %가 아님)
+                            # Determine format (ROC_AUC is not %)
                             if metric == 'ROC_AUC':
                                 zero_formatted = f"{zero_mean:.3f} ({zero_ci_lower:.3f}-{zero_ci_upper:.3f})"
                                 few_formatted = f"{few_mean:.3f} ({few_ci_lower:.3f}-{few_ci_upper:.3f})"
@@ -612,7 +612,7 @@ def process_dataset(file_pattern, dataset_name, shot_type):
     
     # Find the combined results file
     combined_file = None
-    model_suffix = "image-bins76"  # 분석할 모델 접미사
+    model_suffix = "image-bins76"  # Model suffix to analyze
     if shot_type == 'few':
         combined_file = f"external_validation_proceed/results_few_shot_{dataset_name}_{model_suffix}_combined.xlsx"
     else:
@@ -634,7 +634,7 @@ def process_dataset(file_pattern, dataset_name, shot_type):
     
     # Define thresholds based on dataset
     # if dataset_name == 'ghana':
-    #     thresholds = [7.0, 10.5, 11.69, 13.0] # Ghana는 현재 사용 안함
+    #     thresholds = [7.0, 10.5, 11.69, 13.0] # Ghana is not currently used
     # else:  # eyedye
     thresholds = [7.0, 10.5, 10.92, 13.0]
     
@@ -681,7 +681,7 @@ def main():
     print("=" * 80)
     
     # Define datasets and shot types to process
-    # datasets = ['ghana', 'eyedye'] # Ghana는 현재 사용 안함
+    # datasets = ['ghana', 'eyedye'] # Ghana is not currently used
     datasets = ['eyedye']
     shot_types = ['zero', 'few']
     model_suffix = "image-bins76"

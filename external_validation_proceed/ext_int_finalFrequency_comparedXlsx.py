@@ -5,30 +5,30 @@ import seaborn as sns
 from pathlib import Path
 from scipy import stats
 
-# Seaborn 스타일 설정
+# Set Seaborn style
 sns.set_style('whitegrid')
 
 def adaptive_few_shot_sampling(df, country_config):
-    """적응적 구간별 샘플링"""
+    """Adaptive range-based sampling"""
     
-    # 우선순위 구간 정의 (임상적 중요도순)
+    # Define priority ranges (in order of clinical importance)
     priority_bins = [
-        (3, 7),   # 매우 중요: 수혈 기준
-        (7, 10),  # 중요: 빈혈 범위
-        (13, 16), # 중요: 고수치
-        (10, 13)  # 일반: 정상 범위
+        (3, 7),   # Very important: transfusion threshold
+        (7, 10),  # Important: anemia range
+        (13, 16), # Important: high values
+        (10, 13)  # Normal: normal range
     ]
     
     target = 10 if country_config != 'joint' else 20
     selected = []
     
-    # 1단계: 우선순위 구간에서 available samples 확보
+    # Step 1: Secure available samples from priority ranges
     for bin_range in priority_bins:
         bin_data = df[(df['Hb'] >= bin_range[0]) & (df['Hb'] < bin_range[1])]
         
         if len(bin_data) > 0:
-            # 구간 크기에 비례하여 샘플 수 결정
-            max_from_bin = min(3, len(bin_data))  # 구간당 최대 3개
+            # Determine sample number proportional to range size
+            max_from_bin = min(3, len(bin_data))  # Maximum 3 per range
             n_samples = min(max_from_bin, target - len(selected))
             
             if n_samples > 0:
@@ -38,13 +38,13 @@ def adaptive_few_shot_sampling(df, country_config):
         if len(selected) >= target:
             break
     
-    # 2단계: 부족분은 weighted random sampling
+    # Step 2: Fill shortage with weighted random sampling
     if len(selected) < target:
         remaining = target - len(selected)
         available = df.index.difference(selected)
         
         if len(available) >= remaining:
-            # Hb 분포를 고려한 가중 샘플링
+            # Weighted sampling considering Hb distribution
             weights = calculate_clinical_weights(df.loc[available]['Hb'])
             additional = df.loc[available].sample(
                 n=remaining, 
@@ -56,47 +56,47 @@ def adaptive_few_shot_sampling(df, country_config):
     return selected[:target]
 
 def calculate_clinical_weights(hb_values):
-    """임상적 중요도 기반 가중치"""
+    """Clinical importance-based weights"""
     weights = []
     for hb in hb_values:
         if hb < 7:
-            weight = 3.0    # 매우 중요
+            weight = 3.0    # Very important
         elif hb < 10:
-            weight = 2.0    # 중요
+            weight = 2.0    # Important
         elif hb > 15:
-            weight = 2.0    # 중요
+            weight = 2.0    # Important
         else:
-            weight = 1.0    # 기본
+            weight = 1.0    # Default
         weights.append(weight)
     
     return weights
 
-# 전략 정의
+# Strategy definition
 india_strategy = {
     'target_distribution': {
-        (7, 10): 3,   # 빈혈 범위 확보
-        (10, 13): 4,  # 기존 강점 활용
-        (13, 16): 3   # 고수치 보완
+        (7, 10): 3,   # Secure anemia range
+        (10, 13): 4,  # Leverage existing strengths
+        (13, 16): 3   # Supplement high values
     }
 }
 
 italy_strategy = {
     'target_distribution': {
-        (7, 10): 4,   # 저수치 최대한 확보
-        (10, 13): 3,  # 중간값 보완
-        (13, 16): 3   # 기존 데이터 활용
+        (7, 10): 4,   # Maximize low values
+        (10, 13): 3,  # Supplement middle values
+        (13, 16): 3   # Utilize existing data
     }
 }
 
 joint_strategy = {
     'per_country': {
-        'India': italy_strategy,  # 상호 보완
+        'India': italy_strategy,  # Mutual complement
         'Italy': india_strategy
     }
 }
 
 def calculate_fold_metrics(internal_df):
-    """Fold별 MAE, STD 계산"""
+    """Calculate MAE, STD per fold"""
     fold_metrics = {}
     for fold in range(5):  # 0-4 fold
         fold_data = internal_df[internal_df['fold'] == fold]
@@ -107,16 +107,16 @@ def calculate_fold_metrics(internal_df):
     return fold_metrics
 
 def select_best_checkpoint(fold_metrics):
-    """Composite score를 사용하여 best fold 선택"""
+    """Select best fold using composite score"""
     if not fold_metrics:
         return None, None
     
-    # 모든 fold의 값들 수집
+    # Collect values from all folds
     maes = [fold_metrics[fold]['mae'] for fold in fold_metrics]
     stds = [fold_metrics[fold]['std'] for fold in fold_metrics]
     cvs = [fold_metrics[fold]['std'] / fold_metrics[fold]['mae'] for fold in fold_metrics]
     
-    # 정규화를 위한 min/max 계산
+    # Calculate min/max for normalization
     mae_min, mae_max = min(maes), max(maes)
     std_max = max(stds)
     cv_max = max(cvs)
@@ -127,12 +127,12 @@ def select_best_checkpoint(fold_metrics):
         std = fold_metrics[fold]['std']
         cv = std / mae
         
-        # 정규화
+        # Normalize
         mae_norm = (mae - mae_min) / (mae_max - mae_min) if mae_max != mae_min else 0
         std_norm = std / std_max if std_max != 0 else 0
         cv_norm = cv / cv_max if cv_max != 0 else 0
         
-        # External validation에 최적화된 가중치
+        # Weights optimized for external validation
         score = 0.5 * mae_norm + 0.3 * std_norm + 0.2 * cv_norm
         scores[fold] = score
     
@@ -140,7 +140,7 @@ def select_best_checkpoint(fold_metrics):
     return best_fold, scores
 
 def analyze_hb_frequency(hb_values, label, hb_ranges):
-    """Hb 빈도 분석 - 명확한 구간 정의"""
+    """Hb frequency analysis - clear range definition"""
     freq = {}
     total = len(hb_values)
     
@@ -149,7 +149,7 @@ def analyze_hb_frequency(hb_values, label, hb_ranges):
             count = (hb_values < upper).sum()
         elif upper is None:  # >=15
             count = (hb_values >= lower).sum()
-        else:  # 명확한 범위: lower <= Hb < upper
+        else:  # Clear range: lower <= Hb < upper
             count = ((hb_values >= lower) & (hb_values < upper)).sum()
         
         freq[label_range] = {
@@ -160,8 +160,8 @@ def analyze_hb_frequency(hb_values, label, hb_ranges):
     return freq
 
 def main():
-    # Hb 범위 정의 - 명확한 구간: (lower, upper, label)
-    # lower <= Hb < upper (양쪽 경계 명확)
+    # Define Hb ranges - clear intervals: (lower, upper, label)
+    # lower <= Hb < upper (both boundaries clear)
     hb_ranges = [
         (None, 6, "<6"),              # Hb < 6
         (6, 7, "6-6.9"),              # 6 <= Hb < 7
@@ -176,11 +176,11 @@ def main():
         (15, None, ">=15")            # Hb >= 15
     ]
     
-    # Internal 데이터 로드
+    # Load Internal data
     internal_df = pd.read_excel('results_excel_file_final/results_image-bins76_combined.xlsx')
     internal_hb = internal_df['ground truth']
     
-    # External 데이터 로드
+    # Load External data
     external_master_df = pd.read_csv('external_validation_joint_results/external_validation_master.csv')
     external_india_df = pd.read_csv('external_validation_joint_results/external_validation_india.csv')
     external_italy_df = pd.read_csv('external_validation_joint_results/external_validation_italy.csv')
@@ -188,14 +188,14 @@ def main():
     # print(f"Ghana data columns: {external_ghana_df.columns.tolist()}")
     # print(f"Ghana data sample:\n{external_ghana_df.head()}")
     
-    # Hb 열 처리: 빈 문자열과 "_" 제외
+    # Process Hb column: exclude empty strings and "_"
     external_master_df = external_master_df[external_master_df['Hb'] != ""]
     external_master_df = external_master_df[external_master_df['Hb'] != "_"]
     external_india_df = external_india_df[external_india_df['Hb'] != ""]
     external_india_df = external_india_df[external_india_df['Hb'] != "_"]
     external_italy_df = external_italy_df[external_italy_df['Hb'] != ""]
     external_italy_df = external_italy_df[external_italy_df['Hb'] != "_"]
-    # Ghana 데이터 처리 (사용하지 않음)
+    # Process Ghana data (not used)
     # if 'Hb' in external_ghana_df.columns:
     #     external_ghana_df = external_ghana_df[external_ghana_df['Hb'] != ""]
     #     external_ghana_df = external_ghana_df[external_ghana_df['Hb'] != "_"]
@@ -205,8 +205,8 @@ def main():
     external_italy_hb = pd.to_numeric(external_italy_df['Hb'], errors='coerce').dropna()
     # external_ghana_hb = pd.to_numeric(external_ghana_df['Hb'], errors='coerce').dropna() if 'Hb' in external_ghana_df.columns else pd.Series(dtype=float)
     
-    # 저수치 Hb 케이스 분석 (<8 g/dL)
-    print("=== 저수치 Hb 케이스 분석 (<8 g/dL) ===")
+    # Analyze low Hb cases (<8 g/dL)
+    print("=== Low Hb Case Analysis (<8 g/dL) ===")
     datasets = {
         'Internal': internal_hb,
         'External (Master)': external_master_hb,
@@ -217,10 +217,10 @@ def main():
     dataset_sizes = {name: len(hb) for name, hb in datasets.items()}
     highlight_datasets = {'Internal', 'External (Master)'}
     color_map = {
-        'Internal': '#1f77b4',          # blue (강조)
-        'External (Master)': '#ff7f0e', # orange (강조)
-        'External (India)': '#aaaaaa',  # medium-light gray (부드러움)
-        'External (Italy)': '#666666',  # dark gray (진하고 잘 보임)
+        'Internal': '#1f77b4',          # blue (highlighted)
+        'External (Master)': '#ff7f0e', # orange (highlighted)
+        'External (India)': '#aaaaaa',  # medium-light gray (soft)
+        'External (Italy)': '#666666',  # dark gray (bold and visible)
     # 'External (Ghana)': '#2ca02c'   # green
     }
     
@@ -229,30 +229,30 @@ def main():
         total = len(hb)
         print(f"{name}: {low_count}/{total} ({low_count/total*100:.1f}%)")
     
-    # 층화 가능성 평가
-    print("\n=== 층화 가능성 평가 ===")
+    # Evaluate stratification feasibility
+    print("\n=== Stratification Feasibility Evaluation ===")
     for name, hb in datasets.items():
         low_count = (hb < 8).sum()
-        if low_count >= 5:  # 최소 5개 이상이면 층화 가능
-            print(f"{name}: 층화 가능 (저수치 케이스 {low_count}개)")
+        if low_count >= 5:  # Stratification possible if at least 5 cases
+            print(f"{name}: Stratification possible (low value cases: {low_count})")
         else:
-            print(f"{name}: 층화 어려움 (저수치 케이스 {low_count}개)")
+            print(f"{name}: Stratification difficult (low value cases: {low_count})")
     
-    # Best fold 선택
-    print("\n=== Best Fold 선택 ===")
+    # Select best fold
+    print("\n=== Best Fold Selection ===")
     fold_metrics = calculate_fold_metrics(internal_df)
     best_fold, scores = select_best_checkpoint(fold_metrics)
     
     if best_fold is not None:
         print(f"Best Fold: {best_fold}")
-        print("Fold별 Scores:")
+        print("Scores per Fold:")
         for fold, score in scores.items():
             print(f"  Fold {fold}: MAE={fold_metrics[fold]['mae']:.4f}, STD={fold_metrics[fold]['std']:.4f}, Score={score:.4f}")
     else:
-        print("Fold metrics 계산 실패")
+        print("Failed to calculate fold metrics")
     
-    # Hb 빈도 분석
-    print("\n=== Hb 빈도 분석 ===")
+    # Analyze Hb frequency
+    print("\n=== Hb Frequency Analysis ===")
     freq_results = {}
     
     for name, hb in datasets.items():
@@ -262,7 +262,7 @@ def main():
         for range_label, data in freq.items():
             print(f"  {range_label}: {data['count']} ({data['percentage']:.1f}%)")
     
-    # 분포 비교 그래프
+    # Distribution comparison graph
     plt.figure(figsize=(15, 10))
     
     # Histogram
@@ -342,14 +342,14 @@ def main():
     plt.savefig('external_validation_proceed/hb_frequency_comparison_final.png', dpi=300, bbox_inches='tight')
     plt.show()
     
-    # 통계적 검정 (Internal vs External Master)
-    print("\n=== 통계적 검정 (Internal vs External Master) ===")
+    # Statistical test (Internal vs External Master)
+    print("\n=== Statistical Test (Internal vs External Master) ===")
     stat, p_value = stats.ks_2samp(internal_hb, external_master_hb)
     print(f"Kolmogorov-Smirnov test: statistic={stat:.4f}, p-value={p_value:.4f}")
     
-    # 결과 Excel 저장
+    # Save results to Excel
     with pd.ExcelWriter('external_validation_proceed/ext_int_frequency_comparison_final.xlsx') as writer:
-        # 빈도 데이터
+        # Frequency data
         freq_df = pd.DataFrame()
         for name, freq in freq_results.items():
             temp_df = pd.DataFrame.from_dict(freq, orient='index')
@@ -392,7 +392,7 @@ def main():
 
         formatted_df.to_excel(writer, sheet_name='Frequency', index=False)
         
-        # 저수치 분석
+        # Low value analysis
         low_hb_summary = pd.DataFrame({
             'Dataset': list(datasets.keys()),
             'Low_Hb_Count': [(hb < 8).sum() for hb in datasets.values()],
@@ -407,7 +407,7 @@ def main():
             fold_df['score'] = [scores.get(fold, None) for fold in fold_metrics.keys()]
             fold_df.to_excel(writer, sheet_name='Fold_Metrics')
     
-    print("\n분석 완료! 결과는 external_validation/ 폴더에 저장되었습니다.")
+    print("\nAnalysis completed! Results saved in external_validation/ folder.")
 
 if __name__ == "__main__":
     main()

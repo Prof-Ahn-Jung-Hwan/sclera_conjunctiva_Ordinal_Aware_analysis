@@ -34,10 +34,12 @@ Usage:
 
 import argparse
 import os
-import time
+
 # Add project root to Python path
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import time
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from pathlib import Path
 
@@ -61,39 +63,39 @@ def main(args):
     args.lookup = create_ordinal_lookup(args)
     print(f"Ordinal lookup table: {args.lookup}")
 
-    # train.txt 읽기
-    # baseline exp_name 추출 (suffix 제거 또는 baseline-exp-name 사용)
-    if hasattr(args, 'baseline_exp_name') and args.baseline_exp_name:
+    # Read train.txt
+    # Extract baseline exp_name (remove suffix or use baseline-exp-name)
+    if hasattr(args, "baseline_exp_name") and args.baseline_exp_name:
         baseline_exp_name = args.baseline_exp_name
     else:
-        baseline_exp_name = args.exp_name.split('-no_enc')[0].split('-no_ord')[0]
+        baseline_exp_name = args.exp_name.split("-no_enc")[0].split("-no_ord")[0]
     baseline_log_dir = os.path.join("logs", "train", f"{baseline_exp_name}-fold{args.fold}")
     train_file = os.path.join(baseline_log_dir, "train.txt")
     train_data = []
-    with open(train_file, 'r') as f:
+    with open(train_file, "r") as f:
         for line in f:
-            # 수정: split()에 인자를 주지 않으면 탭과 공백을 모두 구분자로 처리
+            # Modified: If no argument is given to split(), both tab and space are treated as delimiters
             parts = line.strip().split()
             img_path = parts[0]
             Hb = float(parts[1])
-            train_data.append((Path(img_path), {'Hb': Hb}))
+            train_data.append((Path(img_path), {"Hb": Hb}))
 
-    # test.txt 읽기
+    # Read test.txt
     test_file = os.path.join(baseline_log_dir, "test.txt")
     test_data = []
-    with open(test_file, 'r') as f:
+    with open(test_file, "r") as f:
         for line in f:
-            # 수정: split()에 인자를 주지 않으면 탭과 공백을 모두 구분자로 처리
+            # Modified: If no argument is given to split(), both tab and space are treated as delimiters
             parts = line.strip().split()
             img_path = parts[0]
             Hb = float(parts[1])
-            test_data.append((Path(img_path), {'Hb': Hb}))
+            test_data.append((Path(img_path), {"Hb": Hb}))
 
-    # dataset 만들기
-    train_dataset = AjouMC_AnemiaDataset(args, train_data, mode='train', w_filename=True)
-    test_dataset = AjouMC_AnemiaDataset(args, test_data, mode='test', w_filename=True)
+    # Create dataset
+    train_dataset = AjouMC_AnemiaDataset(args, train_data, mode="train", w_filename=True)
+    test_dataset = AjouMC_AnemiaDataset(args, test_data, mode="test", w_filename=True)
 
-    # imbalance 계산
+    # Calculate imbalance
     imbalance, cls_num_list = calc_imbalance(args, train_data)
 
     log_data_split(args, train_dataset, test_dataset)
@@ -107,7 +109,7 @@ def main(args):
         num_workers=args.train_workers,
         shuffle=True,
         pin_memory=True,
-        drop_last=False, # Set to False to use all samples in small datasets
+        drop_last=False,  # Set to False to use all samples in small datasets
         persistent_workers=True,
     )
     test_dataloader = DataLoader(
@@ -146,10 +148,10 @@ def main(args):
             tys1.append(test_result["test/loss"])
             tys2.append(test_result["test/mae"])
 
-            # MAE가 nan이면 학습을 중단하고 에러를 발생시킴
+            # If MAE is nan, stop training and raise error
             if torch.isnan(torch.tensor(test_result["test/mae"])):
                 print(f"\n\nERROR: MAE is NaN at epoch {epoch}. Stopping training for this fold.")
-                # 비정상 종료 코드를 반환하여 셸 스크립트가 인지하도록 함
+                # Return abnormal exit code so shell script can detect it
                 exit(1)
 
             if not torch.isnan(torch.tensor(test_result["test/mae"])) and test_result["test/mae"] < best_test_mae:
@@ -242,7 +244,7 @@ def test_one_epoch(args, dataloader, model, loss_fn, epoch):
 
         loss = loss_fn(model_out, target)
         if torch.isnan(loss):
-            mae_error = torch.tensor(float('inf'))
+            mae_error = torch.tensor(float("inf"))
         else:
             mae_error = MAE_error(
                 (decode_ordinal(args, model_out["logits"]) if args.use_ordinal_regression else model_out["logits"]),
@@ -275,7 +277,9 @@ if __name__ == "__main__":
     parser.add_argument("--no_enc", action="store_true", help="Disable encoder usage")
     parser.add_argument("--no_ord", action="store_true", help="Disable ordinal regression")
     parser.add_argument("--exp-name", type=str, help="A name for the experiment, used for log directory.")
-    parser.add_argument("--baseline-exp-name", type=str, help="Baseline experiment name for test split (ablation studies)")
+    parser.add_argument(
+        "--baseline-exp-name", type=str, help="Baseline experiment name for test split (ablation studies)"
+    )
 
     args_config, remaining_args = config_parser.parse_known_args()
     if args_config.config:
@@ -297,7 +301,7 @@ if __name__ == "__main__":
         args.use_ordinal_regression = False
 
     if not args.use_ordinal_regression:
-        # Regression 모드일 때 하이퍼파라미터 조정 (필요시)
+        # Adjust hyperparameters when in regression mode (if needed)
         # args.lr = 0.0005
         # args.lambda_1 = 0.000001
         # args.lambda_2 = 0.01

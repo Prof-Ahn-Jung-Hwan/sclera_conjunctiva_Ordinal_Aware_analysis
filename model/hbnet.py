@@ -38,17 +38,17 @@ class HbNet(nn.Module):
         self.drop_path = DropPath(0.1)
 
         # --- Final Classifier/Regressor Head (Dynamically configured) ---
-        # 이 블록은 손실 함수에 따라 최종 출력 레이어를 결정합니다.
+        # This block determines the final output layer based on the loss function.
         is_ce_loss = hasattr(args, 'loss_type') and args.loss_type == 'cross_entropy'
 
         if self.use_ordinal_regression and not is_ce_loss:
-            # 원본 Ordinal Regression (커스텀 Head 사용)
+            # Original Ordinal Regression (using custom Head)
             self.head = Head(self.out_dim, (self.ordinal_bins - 1) * 2)
         elif is_ce_loss:
-            # Cross-Entropy의 경우, C개의 클래스에 대한 로짓을 출력합니다.
+            # For Cross-Entropy, output logits for C classes.
             self.head = nn.Linear(self.out_dim, args.ordinal_bins)
         else:
-            # 단순 회귀(Regression)의 경우, 단일 연속 값을 출력합니다.
+            # For simple regression, output a single continuous value.
             self.head = nn.Linear(self.out_dim, 1)
 
     def forward(self, img, label=None, **kwargs):
@@ -81,16 +81,16 @@ class HbNet(nn.Module):
             z = self.encoder(z)
         z = self.drop_path(z)
 
-        # --- 적절한 Head를 통해 로짓(logits) 계산 ---
+        # --- Calculate logits through appropriate Head ---
         if self.use_ordinal_regression and not is_ce_loss:
             # Ordinal Regression
             logits = self.head(z, label)
             logits = rearrange(logits, "B (K P) -> B K P", P=2)
-            # ord_k는 추론/로깅용이므로 그래디언트 계산이 필요 없습니다.
+            # ord_k is for inference/logging, so gradient calculation is not needed.
             with torch.no_grad():
                 ord_k = F.relu(logits.softmax(-1).argmax(-1).sum(-1, keepdim=True) - 1).int()
         else:
-            # Cross-Entropy 또는 단순 회귀(Regression)
+            # Cross-Entropy or simple regression
             logits = self.head(z)
             ord_k = None
 

@@ -1,25 +1,25 @@
 #!/bin/bash
 
-# 이 스크립트는 가장 순수한 형태의 '이미지 단독 회귀' 모델을 학습하고 평가합니다.
-# - Ablation study의 베이스라인 모델과 동일한 train/test 데이터 분할을 사용합니다.
-# 스크립트 실행 중 오류가 발생하면 즉시 중단합니다.
+# This script trains and evaluates the purest form of 'image-only regression' model.
+# - Uses the same train/test data split as the baseline model in the ablation study.
+# Stops immediately if an error occurs during script execution.
 set -e
 
-# 스크립트가 위치한 디렉토리를 기준으로 경로를 설정합니다.
+# Set paths based on the directory where the script is located.
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-cd "${SCRIPT_DIR}" # 스크립트 디렉토리로 작업 위치 변경
+cd "${SCRIPT_DIR}" # Change working directory to script directory
 
-# --- (1) Ablation Study의 베이스라인이 될 모델 목록 ---
-# image-bins76 모델의 train/test split을 사용하여 image-only regression을 수행합니다.
+# --- (1) List of models to be baselines for Ablation Study ---
+# Performs image-only regression using train/test split from image-bins76 model.
 BASELINE_MODELS=(
     "image-bins76"
 )
 
-# GPU 설정 (2대 사용)
+# GPU configuration (using 2 GPUs)
 GPU_POOL=(0 1)
 MAX_CONCURRENT_JOBS=${#GPU_POOL[@]}
 
-# --- (3) 단일 Fold 실행 함수 ---
+# --- (3) Single fold execution function ---
 run_single_regression_fold() {
     local fold=$1
     local gpu_id=$2
@@ -32,7 +32,7 @@ run_single_regression_fold() {
     local train_file="${baseline_log_dir}/train.txt"
     local test_file="${baseline_log_dir}/test.txt"
 
-    # 학습 (train_regression.py 사용)
+    # Training (using train_regression.py)
     CUDA_VISIBLE_DEVICES=${gpu_id} conda run -n torch271 --no-capture-output python3 train_regression.py \
         --config configs/ajoumc_rxt50_image_regression.yaml \
         --fold ${fold} \
@@ -41,7 +41,7 @@ run_single_regression_fold() {
         --test-file "${test_file}" \
         --device 0
 
-    # 테스트 (test_regression.py 사용)
+    # Testing (using test_regression.py)
     local train_log_dir="logs/train/${exp_name}-fold${fold}"
     CUDA_VISIBLE_DEVICES=${gpu_id} conda run -n torch271 --no-capture-output python3 test_regression.py \
         --config configs/ajoumc_rxt50_image_regression.yaml \
@@ -53,10 +53,10 @@ run_single_regression_fold() {
     echo "--- Finished: ${EXP_NAME} Fold ${fold} ---"
 }
 
-# --- (4) 메인 실행 루프 ---
+# --- (4) Main execution loop ---
 for baseline_exp_name in "${BASELINE_MODELS[@]}"; do
-    # image-bins76에서 파생된 고유한 실험 이름 생성
-    # 예: image-bins76 -> image-regression-from-bins76
+    # Generate unique experiment name derived from image-bins76
+    # Example: image-bins76 -> image-regression-from-bins76
     baseline_suffix=$(echo "${baseline_exp_name}" | sed 's/image-//')
     EXP_NAME="image-regression-from-${baseline_suffix}"
 
@@ -66,13 +66,13 @@ for baseline_exp_name in "${BASELINE_MODELS[@]}"; do
     echo "===== Saving results as: ${EXP_NAME}"
     echo "======================================================================"
     
-    # --- 5-Fold 병렬 실행 ---
+    # --- 5-Fold parallel execution ---
     job_count=0
     gpu_idx=0
 
     for fold in {0..4}; do
         GPU_ID=${GPU_POOL[${gpu_idx}]}
-        # 생성된 고유 실험 이름(EXP_NAME)과 베이스라인 이름(baseline_exp_name)을 함께 전달
+        # Pass both generated unique experiment name (EXP_NAME) and baseline name (baseline_exp_name)
         run_single_regression_fold ${fold} ${GPU_ID} "${EXP_NAME}" "${baseline_exp_name}" &
         
         job_count=$((job_count + 1))
@@ -82,17 +82,17 @@ for baseline_exp_name in "${BASELINE_MODELS[@]}"; do
             job_count=$((job_count - 1))
         fi
     done
-    wait # 모든 fold 작업이 끝날 때까지 대기
+    wait # Wait until all fold jobs are completed
 
-    # --- 결과 병합 ---
+    # --- Combine results ---
     echo "--- Combining Results for ${EXP_NAME} ---"
     COMBINED_FILENAME="results_${EXP_NAME}_combined.xlsx"
     
-    # find 명령어로 모든 fold의 결과 파일을 찾습니다.
+    # Find result files for all folds using find command.
     file_list=$(find logs/test -path "*/${EXP_NAME}-fold*/results.xlsx")
     if [ -z "${file_list}" ]; then
         echo "Warning: No result files found for ${EXP_NAME}. Skipping combination."
-        continue # 다음 베이스라인 모델로 넘어감
+        continue # Move to next baseline model
     fi
     
     conda run -n torch271 --no-capture-output python3 combine_results.py ${file_list} -o "${COMBINED_FILENAME}"

@@ -20,7 +20,7 @@ A key strength of this work is its validation. Beyond internal data, we performe
 ## Project Structure
 
 ```
-mycode_github_251109/
+sclera_conjunctiva_Ordinal_Aware_analysis/
 ├── .gitignore
 ├── LICENSE
 ├── README.md
@@ -33,6 +33,7 @@ mycode_github_251109/
 ├── analysis/               # Scripts for analyzing results
 ├── scripts/                # Shell scripts to run experiments
 ├── external_validation_proceed/ # Scripts and data for external validation
+├── log_bins/               # Training logs and checkpoints (generated during training)
 └── sample_data/            # Sample dataset for demonstration
 ```
 
@@ -47,8 +48,8 @@ mycode_github_251109/
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/your-repo-name.git
-    cd your-repo-name
+    git clone https://github.com/Prof-Ahn-Jung-Hwan/sclera_conjunctiva_Ordinal_Aware_analysis.git
+    cd sclera_conjunctiva_Ordinal_Aware_analysis
     ```
 
 2.  **Create a Conda environment:**

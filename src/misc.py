@@ -42,8 +42,8 @@ def log_data_split(args, train_fold, test_fold):
 def adjust_learning_rate(optimizer, epoch, args):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     epoch = epoch + 1
-    # IB Loss를 사용하는 경우에만 해당 스케줄링 적용 (start_ib_epoch 존재 여부 확인)
-    if hasattr(args, 'start_ib_epoch') and epoch > args.start_ib_epoch:
+    # Apply this scheduling only when using IB Loss (check if start_ib_epoch exists)
+    if hasattr(args, "start_ib_epoch") and epoch > args.start_ib_epoch:
         lr = args.lr * 0.01
         if epoch > args.epochs * 0.9:
             lr = args.lr * 0.000001

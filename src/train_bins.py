@@ -8,10 +8,12 @@ stopping mechanism to reduce unnecessary training time.
 
 import argparse
 import os
-import time
+
 # Add project root to Python path
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import time
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from pathlib import Path
 
@@ -48,7 +50,7 @@ def main(args):
         num_workers=args.train_workers,
         shuffle=True,
         pin_memory=True,
-        drop_last=False, # Set to False to use all samples in small datasets
+        drop_last=False,  # Set to False to use all samples in small datasets
         persistent_workers=True,
     )
     test_dataloader = DataLoader(
@@ -71,12 +73,11 @@ def main(args):
     xs, ys1, ys2 = [], [], []
     txs, tys1, tys2 = [], [], []
     best_test_mae = float("inf")
-    
-    # --- 최고 성능 에포크 기록용 ---
+
+    # --- For recording best performance epoch ---
     best_epoch = 0
-    
-    
-    # # --- (비활성화) 조기 중단 로직 ---
+
+    # # --- (Disabled) Early stopping logic ---
     # # min_epochs_before_stop = args.min_epochs_before_stop
     # # patience = args.patience
     # # patience_counter = 0
@@ -93,8 +94,7 @@ def main(args):
         xs.append(epoch)
         ys1.append(train_result["train/loss"])
         ys2.append(train_result["train/mae"])
-        
-        
+
         if (epoch + 1) % 2 == 0:
             test_result = test_one_epoch(args, test_dataloader, model, loss_fn, epoch)
             txs.append(epoch)
@@ -103,7 +103,7 @@ def main(args):
 
             if test_result["test/mae"] < best_test_mae:
                 best_test_mae = test_result["test/mae"]
-                best_epoch = epoch # 최고 성능 달성 시 에포크 기록
+                best_epoch = epoch  # Record epoch when best performance achieved
                 torch.save(
                     {
                         "epoch": epoch,
@@ -112,7 +112,7 @@ def main(args):
                     },
                     os.path.join(args.log_dir, f"best.ckpt"),
                 )
-                # patience_counter = 0 # (비활성화)
+                # patience_counter = 0 # (Disabled)
             # else:
             #     if epoch >= min_epochs_before_stop:
             #         patience_counter += 1
@@ -121,7 +121,7 @@ def main(args):
                 f'TEST REPORT >> loss: {test_result["test/loss"]:.4f}  mae: {test_result["test/mae"]:.4f}   best valid mae: {best_test_mae:.4f} at epoch {best_epoch}'
             )
 
-        # # --- (비활성화) 조기 중단 로직 ---
+        # # --- (Disabled) Early stopping logic ---
         # if patience_counter >= patience:
         #     print(f"\nEarly stopping at epoch {epoch} as there was no improvement for {patience} epochs.")
         #     break
@@ -147,7 +147,7 @@ def main(args):
 
 def train_one_epoch(args, dataloader, model, optimizer, loss_fn, scheduler, epoch, global_step):
     model.train()
-    pbar = tqdm(dataloader, desc=f"[{epoch}/{args.epochs}]") # tqdm 설명 수정
+    pbar = tqdm(dataloader, desc=f"[{epoch}/{args.epochs}]")  # Modified tqdm description
     log_losses = []
     log_maes = []
     seen = 0
@@ -171,7 +171,9 @@ def train_one_epoch(args, dataloader, model, optimizer, loss_fn, scheduler, epoc
             target,
         )
 
-        pbar.set_postfix(lr=f"{optimizer.param_groups[0]['lr']:.7f}", loss=f"{loss:.4f}", MAE=f"{mae_error.mean().item():.4f}")
+        pbar.set_postfix(
+            lr=f"{optimizer.param_groups[0]['lr']:.7f}", loss=f"{loss:.4f}", MAE=f"{mae_error.mean().item():.4f}"
+        )
         log_losses.append(loss.item())
         log_maes.append(mae_error.sum().item())
     log_losses = sum(log_losses) / len(log_losses)
@@ -182,7 +184,7 @@ def train_one_epoch(args, dataloader, model, optimizer, loss_fn, scheduler, epoc
 @torch.no_grad()
 def test_one_epoch(args, dataloader, model, loss_fn, epoch):
     model.eval()
-    pbar = tqdm(dataloader, desc=f"[TEST@({epoch})Epoch]") # tqdm 설명 수정
+    pbar = tqdm(dataloader, desc=f"[TEST@({epoch})Epoch]")  # Modified tqdm description
     log_losses = []
     log_maes = []
     seen = 0

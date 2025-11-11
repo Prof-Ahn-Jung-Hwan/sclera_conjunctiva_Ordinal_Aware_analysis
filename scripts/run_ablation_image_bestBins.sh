@@ -1,26 +1,26 @@
 #!/bin/bash
 
-# Image-only 모델 (image + or + ve + ibfc) Ablation Study 스크립트
-# Best bins 76을 기준으로 하되, bins 값을 조정하여 다른 값도 테스트 가능
+# Image-only model (image + or + ve + ibfc) Ablation Study script
+# Based on best bins 76, but can test other values by adjusting bins
 
 set -e
 
-# --- (1) 분석할 Bins 값 목록 ---
-# Best bins는 76이지만, 다른 값도 테스트할 수 있게 배열로 구성
+# --- (1) List of Bins values to analyze ---
+# Best bins is 76, but configured as array to allow testing other values
 BINS_TO_ANALYZE=(
     "76"  # Best bins from Bayesian optimization
-    # "83"  # 추가 테스트하려면 주석 해제
-    # "64"  # 추가 테스트하려면 주석 해제
+    # "83"  # Uncomment to test additional value
+    # "64"  # Uncomment to test additional value
 )
 
-# --- (2) 공통 설정 ---
-# Ablation 시나리오 정의 (demo, n 제외하고 bins 값만 사용)
+# --- (2) Common settings ---
+# Define ablation scenarios (using only bins value, excluding demo, n)
 declare -a scenarios
 scenarios[0]="--no_enc"           # 1. No Variant Encoder (VE=0, OR=1)
 scenarios[1]="--no_ord"           # 2. No Ordinal Regression (VE=1, OR=0)
 scenarios[2]="--no_enc --no_ord"  # 3. Regression Only (VE=0, OR=0)
 
-# GPU 설정
+# GPU configuration
 GPU_POOL=(0 1)
 MAX_CONCURRENT_JOBS=${#GPU_POOL[@]}
 
@@ -31,12 +31,12 @@ echo "##### Config: configs/ajoumc_rxt50_image.yaml"
 echo "##### Bins to analyze: ${BINS_TO_ANALYZE[*]}"
 echo "############################################################"
 
-# --- (3) 단일 실험 실행 함수 ---
+# --- (3) Single experiment execution function ---
 run_single_ablation() {
     local fold=$1
     local flags=$2
     local gpu_id=$3
-    # 함수 외부의 변수 사용
+    # Use variables from outside function
     local base_exp_name="${CURRENT_BASE_EXP_NAME}"
     local config_file="${CURRENT_CONFIG_FILE}"
     local bins_value="${CURRENT_BINS_VALUE}"
@@ -46,9 +46,9 @@ run_single_ablation() {
 
     echo "--- Starting: ${exp_name_with_flags} Fold ${fold} on GPU ${gpu_id} ---"
 
-    # 학습 (train_ablation.py 사용)
-    # train_ablation.py는 baseline 모델의 train/test split을 재사용합니다.
-    # log_bins/train/image-bins76-fold0~4/train.txt, test.txt 사용
+    # Training (using train_ablation.py)
+    # train_ablation.py reuses baseline model's train/test split.
+    # Uses log_bins/train/image-bins76-fold0~4/train.txt, test.txt
     CUDA_VISIBLE_DEVICES=${gpu_id} python3 train_ablation.py \
         --config "${config_file}" \
         --bins ${bins_value} \
@@ -57,7 +57,7 @@ run_single_ablation() {
         --baseline-exp-name "${base_exp_name}" \
         --device 0 ${flags}
 
-    # 테스트 (test_ablation.py 사용)
+    # Testing (using test_ablation.py)
     local train_log_dir="logs/train/${exp_name_with_flags}-fold${fold}"
     CUDA_VISIBLE_DEVICES=${gpu_id} python3 test_ablation.py \
         --config "${train_log_dir}/config.yaml" \
@@ -69,15 +69,15 @@ run_single_ablation() {
     echo "--- Finished: ${exp_name_with_flags} Fold ${fold} ---"
 }
 
-# --- (4) 메인 실행 루프 ---
+# --- (4) Main execution loop ---
 for bins_value in "${BINS_TO_ANALYZE[@]}"; do
-    # 현재 실행할 모델의 전역 변수 설정
-    # hybrid 대신 image로 변경
+    # Set global variables for current model to execute
+    # Changed from hybrid to image
     export CURRENT_BASE_EXP_NAME="image-bins${bins_value}"
     export CURRENT_CONFIG_FILE="configs/ajoumc_rxt50_image.yaml"
     export CURRENT_BINS_VALUE=${bins_value}
     
-    # 결과 파일명 설정 (no enc, no ord가 파일명에 들어가서 구분 가능)
+    # Set result filename (distinguishable as no enc, no ord are included in filename)
     SUMMARY_CSV="ablation_summary_${CURRENT_BASE_EXP_NAME}.csv"
     SUMMARY_XLSX="ablation_summary_${CURRENT_BASE_EXP_NAME}.xlsx"
 
@@ -87,7 +87,7 @@ for bins_value in "${BINS_TO_ANALYZE[@]}"; do
     echo "===== Bins: ${CURRENT_BINS_VALUE}"
     echo "======================================================================"
 
-    # --- 결과 요약 파일 헤더 생성 ---
+    # --- Create result summary file header ---
     if [ -f "${SUMMARY_CSV}" ]; then
         echo "Summary file ${SUMMARY_CSV} already exists. Removing it to start fresh."
         rm "${SUMMARY_CSV}"
@@ -95,17 +95,17 @@ for bins_value in "${BINS_TO_ANALYZE[@]}"; do
     echo "Creating new summary file: ${SUMMARY_CSV}"
     echo "Experiment,1st Fold,2nd Fold,3rd Fold,4th Fold,5th Fold,Mean_MAE,Std_Dev,95%_CI_Range,P_Value_vs_Baseline,Cohens_d_vs_Baseline,Delta_MAE_vs_Baseline" > "${SUMMARY_CSV}"
 
-    # --- 중요: Full model (image + or + ve+ ibfc)는 다시 실행하지 않음 ---
-    # 기존에 실행된 결과를 사용하여 베이스라인 MAE 추출
+    # --- Important: Full model (image + or + ve+ ibfc) will NOT be re-executed ---
+    # Extract baseline MAE using previously executed results
     echo "=== Extracting baseline results (Full model will NOT be re-executed) ==="
     
-    # 베이스라인 결과 파일 확인
+    # Check baseline result file
     BASELINE_RESULT_FILE="results_${CURRENT_BASE_EXP_NAME}_combined.xlsx"
     if [ ! -f "${BASELINE_RESULT_FILE}" ]; then
         echo "Warning: Baseline result file ${BASELINE_RESULT_FILE} not found."
         echo "Attempting to combine existing baseline results..."
         
-        # 베이스라인 결과 병합 시도
+        # Attempt to merge baseline results
         baseline_files=$(find logs/test -path "*/${CURRENT_BASE_EXP_NAME}-fold*/results.xlsx" 2>/dev/null || true)
         if [ -n "${baseline_files}" ]; then
             echo "Found baseline result files. Combining..."
@@ -117,7 +117,7 @@ for bins_value in "${BINS_TO_ANALYZE[@]}"; do
         fi
     fi
 
-    # 베이스라인 모델의 5-fold MAE 값 추출
+    # Extract 5-fold MAE values from baseline model
     echo "Extracting baseline MAEs from ${BASELINE_RESULT_FILE}..."
     BASE_MAES_STR=$(python3 -c "
 import pandas as pd, numpy as np, sys
@@ -139,7 +139,7 @@ except Exception as e:
     fi
     echo "Baseline MAEs: ${BASE_MAES_STR}"
 
-    # 베이스라인 결과 요약 추가
+    # Add baseline result summary
     python3 -c "
 import sys, numpy as np
 exp_name, summary_csv, maes_str = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -151,7 +151,7 @@ with open(summary_csv, 'a') as f:
     f.write(f'{exp_name},{maes_str},{mean_mae:.4f},{std_mae:.4f},\"{ci_range}\",N/A,N/A,0.0000\n')
 " "${CURRENT_BASE_EXP_NAME}" "${SUMMARY_CSV}" "${BASE_MAES_STR}"
 
-    # --- 병렬 실행 (Ablation scenarios만 실행) ---
+    # --- Parallel execution (execute only ablation scenarios) ---
     echo "=== Starting ablation scenarios (no enc, no ord combinations) ==="
     job_count=0
     gpu_idx=0
@@ -170,16 +170,16 @@ with open(summary_csv, 'a') as f:
     done
     wait
 
-    # --- 결과 병합 및 요약 ---
+    # --- Merge and summarize results ---
     echo "=== Combining and Summarizing Ablation Results for ${CURRENT_BASE_EXP_NAME} ==="
 
-    # 각 시나리오에 대해 결과 병합 및 통계 계산
+    # Merge results and calculate statistics for each scenario
     for flags in "${scenarios[@]}"; do
         flag_suffix=$(echo "${flags}" | sed 's/--//g' | sed 's/ /-/g')
         exp_name="${CURRENT_BASE_EXP_NAME}-${flag_suffix}"
-        output_file="results_${exp_name}_combined.xlsx"  # no enc, no ord가 파일명에 포함됨
+        output_file="results_${exp_name}_combined.xlsx"  # no enc, no ord are included in filename
         
-        # 결과 파일 찾기
+        # Find result files
         file_list=$(find logs/test -path "*/${exp_name}-fold*/results.xlsx" 2>/dev/null || true)
         if [ -z "${file_list}" ]; then 
             echo "Warning: No result files found for ${exp_name}. Skipping."; 
@@ -190,7 +190,7 @@ with open(summary_csv, 'a') as f:
         echo "Output file: ${output_file}"
         python3 combine_results.py ${file_list} -o "${output_file}"
 
-        # 통계 계산 및 요약 파일에 추가
+        # Calculate statistics and add to summary file
         python3 -c "
 import sys, numpy as np, pandas as pd
 from scipy import stats
@@ -213,7 +213,7 @@ except Exception as e:
 " "${exp_name}" "${SUMMARY_CSV}" "${BASE_MAES_STR}"
     done
 
-    # CSV를 XLSX로 변환
+    # Convert CSV to XLSX
     echo "Converting final summary CSV to XLSX format..."
     python3 -c "
 try:

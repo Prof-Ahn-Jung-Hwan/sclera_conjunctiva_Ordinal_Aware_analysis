@@ -3,14 +3,14 @@ import os
 import numpy as np
 
 # --------------------------------------------------------------------------
-# 1. 샘플링 로직 함수 (수정된 전략)
+# 1. Sampling logic functions (modified strategy)
 # --------------------------------------------------------------------------
 
 def eyedye_india_balanced_sampling(df_india, target_size, random_seed):
-    """India 데이터셋을 위한 균등 샘플링 (전 구간 균등)"""
+    """Uniform sampling for India dataset (uniform across all ranges)"""
     selected_indices = []
     
-    # 우선순위 구간 정의
+    # Define priority ranges
     priority_bins = [
         (7, 10),   # 7-10
         (10, 13),  # 10-13
@@ -25,7 +25,7 @@ def eyedye_india_balanced_sampling(df_india, target_size, random_seed):
     for i, (low, high) in enumerate(priority_bins):
         bin_data = df_india[(df_india['Hb'] >= low) & (df_india['Hb'] < high)]
         
-        # 각 구간에 균등하게 할당 + 나머지 첫 번째 구간에 추가
+        # Allocate equally to each range + add remainder to first range
         target_for_bin = samples_per_bin + (1 if i == 0 and remaining_samples > 0 else 0)
         
         if len(bin_data) > 0:
@@ -33,7 +33,7 @@ def eyedye_india_balanced_sampling(df_india, target_size, random_seed):
             sampled = bin_data.sample(n=n_sample, random_state=random_seed + i)
             selected_indices.extend(sampled.index.tolist())
     
-    # 목표 수량에 미달 시, 전체에서 추가 샘플링
+    # If below target quantity, additional sampling from entire dataset
     remaining_needed = target_size - len(selected_indices)
     if remaining_needed > 0:
         available = df_india.index.difference(selected_indices)
@@ -47,18 +47,18 @@ def eyedye_india_balanced_sampling(df_india, target_size, random_seed):
     return selected_indices[:target_size]
 
 def eyedye_italy_compensatory_sampling(df_italy, target_size, random_seed):
-    """Italy 데이터셋을 위한 보상적 샘플링 (저수치 최우선)"""
+    """Compensatory sampling for Italy dataset (low values prioritized)"""
     selected_indices = []
     
-    # 우선순위 구간 정의 (저수치부터 최우선)
+    # Define priority ranges (low values prioritized first)
     priority_bins = [
-        (0, 9),    # <9 (최우선)
+        (0, 9),    # <9 (highest priority)
         (9, 13),   # 9-13
-        (13, 15),  # 13-15 (극고수치 최소화)
+        (13, 15),  # 13-15 (minimize extreme high values)
     ]
     
-    # 우선순위에 따른 샘플 수 할당 (저수치에 더 많은 비중)
-    allocation_ratio = [0.5, 0.3, 0.2]  # <9에 50%, 9-13에 30%, 13-15에 20%
+    # Allocate sample numbers according to priority (more weight on low values)
+    allocation_ratio = [0.5, 0.3, 0.2]  # 50% for <9, 30% for 9-13, 20% for 13-15
     
     np.random.seed(random_seed)
     
@@ -74,16 +74,16 @@ def eyedye_italy_compensatory_sampling(df_italy, target_size, random_seed):
             sampled = bin_data.sample(n=n_sample, random_state=random_seed + i)
             selected_indices.extend(sampled.index.tolist())
     
-    # 목표 수량에 미달 시, 저수치 우선으로 추가 샘플링
+    # If below target quantity, additional sampling prioritizing low values
     remaining_needed = target_size - len(selected_indices)
     if remaining_needed > 0:
         available = df_italy.index.difference(selected_indices)
         if len(available) > 0:
-            # 저수치 우선으로 가중치 부여
+            # Assign weights prioritizing low values
             available_data = df_italy.loc[available]
-            weights = np.where(available_data['Hb'] < 9, 3.0,  # <9에 높은 가중치
-                      np.where(available_data['Hb'] < 13, 2.0,  # 9-13에 중간 가중치
-                               1.0))  # 나머지에 낮은 가중치
+            weights = np.where(available_data['Hb'] < 9, 3.0,  # High weight for <9
+                      np.where(available_data['Hb'] < 13, 2.0,  # Medium weight for 9-13
+                               1.0))  # Low weight for others
             
             additional = available_data.sample(
                 n=min(remaining_needed, len(available)), 
@@ -95,15 +95,15 @@ def eyedye_italy_compensatory_sampling(df_italy, target_size, random_seed):
     return selected_indices[:target_size]
 
 def ghana_sampling(df_ghana, target_size, random_seed):
-    """Ghana 데이터셋을 위한 샘플링"""
-    # 기존 Ghana 샘플링 로직 유지
+    """Sampling for Ghana dataset"""
+    # Keep existing Ghana sampling logic
     return sample_ghana_stratified(df_ghana, target_size, random_seed)
 
 def sample_ghana_stratified(df, target, random_seed):
-    """Ghana 데이터셋을 위한 우선순위 기반 층화 샘플링"""
+    """Priority-based stratified sampling for Ghana dataset"""
     selected_indices = []
     
-    # 우선순위 및 목표 샘플 수 정의
+    # Define priority and target sample numbers
     priority_bins = {
         (0, 6): 8,
         (6, 8): 12,
@@ -128,7 +128,7 @@ def sample_ghana_stratified(df, target, random_seed):
             selected_indices.extend(sampled.index.tolist())
             df_remaining = df_remaining.drop(sampled.index)
 
-    # 목표 수량에 미달 시, 가중 샘플링으로 채움
+    # If below target quantity, fill with weighted sampling
     remaining_needed = target - len(selected_indices)
     if remaining_needed > 0 and not df_remaining.empty:
         weights = calculate_clinical_weights(df_remaining['Hb'])
@@ -142,7 +142,7 @@ def sample_ghana_stratified(df, target, random_seed):
     return selected_indices[:target]
 
 def calculate_clinical_weights(hb_values):
-    """임상적 중요도 기반 가중치 (저수치/고수치 강조)"""
+    """Clinical importance-based weights (emphasize low/high values)"""
     weights = np.ones(len(hb_values))
     hb_series = pd.Series(hb_values)
     weights[hb_series < 7] = 4.0
@@ -151,147 +151,147 @@ def calculate_clinical_weights(hb_values):
     return weights
 
 # --------------------------------------------------------------------------
-# 2. 메인 실행 로직
+# 2. Main execution logic
 # --------------------------------------------------------------------------
 
 def main():
-    print("--- External Validation 데이터 생성을 시작합니다. ---")
+    print("--- Starting External Validation data generation. ---")
 
-    # --- 설정값 ---
+    # --- Configuration values ---
     RANDOM_SEED = 42
     
-    # Eyedye 할당 전략
+    # Eyedye allocation strategy
     eyedye_allocation = {
         'India': {
             'target': 18,
-            'strategy': 'balanced_sampling',  # 전 구간 균등
+            'strategy': 'balanced_sampling',  # Uniform across all ranges
             'priority': ['7-10', '10-13', '13-16']
         },
         'Italy': {
             'target': 12, 
-            'strategy': 'compensatory_sampling',  # 부족한 저수치 최우선
-            'priority': ['<9', '9-13', '13-15']  # 극고수치 최소화
+            'strategy': 'compensatory_sampling',  # Prioritize insufficient low values
+            'priority': ['<9', '9-13', '13-15']  # Minimize extreme high values
         }
     }
     
-    # Ghana 할당
-    ghana_target = 100  # 708의 14.1%
+    # Ghana allocation
+    ghana_target = 100  # 14.1% of 708
     
-    # 입력 파일 경로
+    # Input file paths
     INPUT_CSVS = {
         'eyedye': 'external_validation_joint_results/external_validation_master.csv',
         'ghana': 'external_validation_ghana/anemiaDataGhana.xlsx'
     }
     
-    # 출력 폴더 생성
+    # Create output folder
     output_folder = 'external_validation_proceed'
     os.makedirs(output_folder, exist_ok=True)
     
-    # --- Eyedye 데이터 처리 ---
-    print(f"\n[EYEDYE] 데이터셋 처리 중...")
+    # --- Process Eyedye data ---
+    print(f"\n[EYEDYE] Processing dataset...")
     df_eyedye = pd.read_csv(INPUT_CSVS['eyedye'])
     
-    # Hb 값 전처리
-    print("Hb 값 전처리 중...")
-    # 빈 문자열을 NaN으로 변환
+    # Preprocess Hb values
+    print("Preprocessing Hb values...")
+    # Convert empty strings to NaN
     df_eyedye['Hb'] = df_eyedye['Hb'].replace("", np.nan)
-    # "_" 포함된 행 제거
+    # Remove rows containing "_"
     df_eyedye = df_eyedye[df_eyedye['Hb'] != "_"]
-    # float로 변환
+    # Convert to float
     df_eyedye['Hb'] = pd.to_numeric(df_eyedye['Hb'], errors='coerce')
-    # NaN 제거
+    # Remove NaN
     df_eyedye = df_eyedye.dropna(subset=['Hb'])
     
-    # full_path 경로 수정 (exteranal_validation -> external_validation_joint_results)
-    # 원본 데이터에 오타가 있어서 exteranal_validation으로 되어있음
+    # Fix full_path (exteranal_validation -> external_validation_joint_results)
+    # Original data has typo, so it's written as exteranal_validation
     df_eyedye['full_path'] = df_eyedye['full_path'].str.replace(
         'exteranal_validation/', 
         'external_validation_joint_results/', 
         regex=False
     )
-    # 혹시 정상 경로도 있을 수 있으니 추가로 처리
+    # Additional processing in case normal paths also exist
     df_eyedye['full_path'] = df_eyedye['full_path'].str.replace(
         'external_validation/', 
         'external_validation_joint_results/', 
         regex=False
     )
     
-    print(f"전처리 후 Eyedye 데이터: {len(df_eyedye)}개 샘플")
-    print(f"India: {len(df_eyedye[df_eyedye['Country'] == 'India'])}개")
-    print(f"Italy: {len(df_eyedye[df_eyedye['Country'] == 'Italy'])}개")
+    print(f"Eyedye data after preprocessing: {len(df_eyedye)} samples")
+    print(f"India: {len(df_eyedye[df_eyedye['Country'] == 'India'])}")
+    print(f"Italy: {len(df_eyedye[df_eyedye['Country'] == 'Italy'])}")
     
-    # 국가별 분리
+    # Separate by country
     df_india = df_eyedye[df_eyedye['Country'] == 'India'].copy()
     df_italy = df_eyedye[df_eyedye['Country'] == 'Italy'].copy()
     
-    # 국가별 샘플링
+    # Sample by country
     india_train_indices = eyedye_india_balanced_sampling(df_india, eyedye_allocation['India']['target'], RANDOM_SEED)
     italy_train_indices = eyedye_italy_compensatory_sampling(df_italy, eyedye_allocation['Italy']['target'], RANDOM_SEED)
     
-    # 전체 train indices 합치기
+    # Combine all train indices
     eyedye_train_indices = india_train_indices + italy_train_indices
     
-    # Train/Test 분할
+    # Train/Test split
     df_eyedye_train = df_eyedye.loc[eyedye_train_indices]
     df_eyedye_test = df_eyedye.drop(eyedye_train_indices)
     
-    # 저장
+    # Save
     eyedye_train_path = os.path.join(output_folder, 'train_ext_eyedye.csv')
     eyedye_test_path = os.path.join(output_folder, 'test_ext_eyedye.csv')
     
     df_eyedye_train.to_csv(eyedye_train_path, index=False)
     df_eyedye_test.to_csv(eyedye_test_path, index=False)
     
-    print(f"Eyedye Train Set: {len(df_eyedye_train)}개 샘플 ({len(df_eyedye_train)/len(df_eyedye)*100:.1f}%)")
-    print(f"  - India: {len(df_eyedye_train[df_eyedye_train['Country'] == 'India'])}개")
-    print(f"  - Italy: {len(df_eyedye_train[df_eyedye_train['Country'] == 'Italy'])}개")
-    print(f"Eyedye Test Set: {len(df_eyedye_test)}개 샘플")
-    print(f"저장 완료: {eyedye_train_path}, {eyedye_test_path}")
+    print(f"Eyedye Train Set: {len(df_eyedye_train)} samples ({len(df_eyedye_train)/len(df_eyedye)*100:.1f}%)")
+    print(f"  - India: {len(df_eyedye_train[df_eyedye_train['Country'] == 'India'])}")
+    print(f"  - Italy: {len(df_eyedye_train[df_eyedye_train['Country'] == 'Italy'])}")
+    print(f"Eyedye Test Set: {len(df_eyedye_test)} samples")
+    print(f"Saved: {eyedye_train_path}, {eyedye_test_path}")
     
-    # --- Ghana 데이터 처리 ---
-    print(f"\n[GHANA] 데이터셋 처리 중...")
+    # --- Process Ghana data ---
+    print(f"\n[GHANA] Processing dataset...")
     df_ghana = pd.read_excel(INPUT_CSVS['ghana'])
     
-    # Hb 값 전처리
-    print("Hb 값 전처리 중...")
-    # 빈 문자열을 NaN으로 변환
+    # Preprocess Hb values
+    print("Preprocessing Hb values...")
+    # Convert empty strings to NaN
     df_ghana['Hb'] = df_ghana['Hb'].replace("", np.nan)
-    # "_" 포함된 행 제거
+    # Remove rows containing "_"
     df_ghana = df_ghana[df_ghana['Hb'] != "_"]
-    # float로 변환
+    # Convert to float
     df_ghana['Hb'] = pd.to_numeric(df_ghana['Hb'], errors='coerce')
-    # NaN 제거
+    # Remove NaN
     df_ghana = df_ghana.dropna(subset=['Hb'])
     
-    # Ghana 데이터에 full_path 추가
+    # Add full_path to Ghana data
     img_base_path = 'external_validation_ghana/total_ghana_img'
     df_ghana['full_path'] = df_ghana['w_filename'].apply(lambda x: os.path.join(img_base_path, f"{x}.png"))
     
-    print(f"전처리 후 Ghana 데이터: {len(df_ghana)}개 샘플")
+    print(f"Ghana data after preprocessing: {len(df_ghana)} samples")
     
-    # Ghana 샘플링
+    # Ghana sampling
     ghana_train_indices = ghana_sampling(df_ghana, ghana_target, RANDOM_SEED)
     
-    # Train/Test 분할
+    # Train/Test split
     df_ghana_train = df_ghana.loc[ghana_train_indices]
     df_ghana_test = df_ghana.drop(ghana_train_indices)
     
-    # 저장
+    # Save
     ghana_train_path = os.path.join(output_folder, 'train_ext_ghana.csv')
     ghana_test_path = os.path.join(output_folder, 'test_ext_ghana.csv')
     
     df_ghana_train.to_csv(ghana_train_path, index=False)
     df_ghana_test.to_csv(ghana_test_path, index=False)
     
-    print(f"Ghana Train Set: {len(df_ghana_train)}개 샘플 ({len(df_ghana_train)/len(df_ghana)*100:.1f}%)")
-    print(f"Ghana Test Set: {len(df_ghana_test)}개 샘플")
-    print(f"저장 완료: {ghana_train_path}, {ghana_test_path}")
+    print(f"Ghana Train Set: {len(df_ghana_train)} samples ({len(df_ghana_train)/len(df_ghana)*100:.1f}%)")
+    print(f"Ghana Test Set: {len(df_ghana_test)} samples")
+    print(f"Saved: {ghana_train_path}, {ghana_test_path}")
     
-    # --- 요약 정보 출력 ---
-    print(f"\n--- 생성 완료 요약 ---")
+    # --- Output summary information ---
+    print(f"\n--- Generation Summary ---")
     print(f"Eyedye: {len(df_eyedye_train)}/{len(df_eyedye)} = {len(df_eyedye_train)/len(df_eyedye)*100:.1f}%")
     print(f"Ghana: {len(df_ghana_train)}/{len(df_ghana)} = {len(df_ghana_train)/len(df_ghana)*100:.1f}%")
-    print(f"모든 파일이 '{output_folder}' 폴더에 저장되었습니다.")
+    print(f"All files saved in '{output_folder}' folder.")
 
 if __name__ == '__main__':
     main()

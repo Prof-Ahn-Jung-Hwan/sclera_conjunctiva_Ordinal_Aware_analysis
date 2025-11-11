@@ -5,15 +5,17 @@ Usage: python test.py --config configs/ajoumc_rxt50_image.yaml --ckpt path/to/yo
 import argparse
 import math
 import os
+
 # Add project root to Python path
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import time
 from pathlib import Path
 
-import pandas as pd
 import matplotlib.pylab as plt
+import pandas as pd
 import torch
 import yaml
 from tqdm import tqdm
@@ -27,7 +29,7 @@ from ordinal_regression import create_ordinal_lookup, decode_ordinal, encode_ord
 
 def main(args):
 
-    # 한글 폰트 설정 (플롯에서 한글 깨짐 방지)
+    # Set Korean font (prevent Korean character corruption in plot)
     try:
         plt.rcParams["font.family"] = "NanumGothic"
         plt.rcParams["axes.unicode_minus"] = False
@@ -35,23 +37,22 @@ def main(args):
         print("Warning: NanumGothic font not found. Korean characters in the plot may not display correctly.")
         print("Please install a Korean font (e.g., 'sudo apt-get install fonts-nanum*')")
 
-
     args.lookup = create_ordinal_lookup(args)
     print(f"Ordinal lookup table: {args.lookup}")
 
-    # test.txt 읽기 (ablation에서는 baseline fold에 따라)
-    # --exp-name은 베이스라인 실험명 (e.g., hybrid_demo-bins68)
+    # Read test.txt (in ablation, according to baseline fold)
+    # --exp-name is baseline experiment name (e.g., hybrid_demo-bins68)
     baseline_log_dir = os.path.join("logs", "train", f"{args.exp_name}-fold{args.fold}")
     test_file = os.path.join(baseline_log_dir, "test.txt")
     test_data = []
-    with open(test_file, 'r') as f:
+    with open(test_file, "r") as f:
         for line in f:
-            parts = line.strip().split('	')
+            parts = line.strip().split("	")
             img_path = parts[0]
             Hb = float(parts[1])
-            test_data.append((Path(img_path), {'Hb': Hb}))
+            test_data.append((Path(img_path), {"Hb": Hb}))
 
-    test_dataset = AjouMC_AnemiaDataset(args, test_data, mode='test', w_filename=True)
+    test_dataset = AjouMC_AnemiaDataset(args, test_data, mode="test", w_filename=True)
 
     args.seed += args.fold
     setup_seed(args.seed)
@@ -63,13 +64,13 @@ def main(args):
     model.load_state_dict(ckpt["state_dict"])
 
     model.eval()
-    
-    # 엑셀 저장을 위해 모든 결과를 담을 리스트
+
+    # List to store all results for Excel saving
     all_results = []
-    # 이미지 시각화를 위해 n_samples 만큼의 결과를 담을 리스트
+    # List to store n_samples results for image visualization
     plot_results = []
 
-    # 1. 전체 테스트 데이터셋에 대해 루프를 실행합니다.
+    # 1. Run loop over entire test dataset.
     pbar = tqdm(range(len(test_dataset)), desc="Evaluating test set")
     for index in pbar:
         with torch.no_grad():
@@ -84,7 +85,7 @@ def main(args):
                 decode_ordinal(args, model_out["logits"]) if args.use_ordinal_regression else model_out["logits"]
             )
 
-            # 2. 모든 결과를 all_results 리스트에 추가합니다. (for Excel)
+            # 2. Add all results to all_results list. (for Excel)
             all_results.append(
                 {
                     "w_filename": f_name,
@@ -93,7 +94,7 @@ def main(args):
                 }
             )
 
-            # 3. '--n_samples' 개수만큼만 plot_results 리스트에 추가합니다. (for Plotting)
+            # 3. Add only '--n_samples' number of results to plot_results list. (for Plotting)
             if index < args.n_samples:
                 plot_results.append(
                     [
@@ -104,7 +105,7 @@ def main(args):
                     ]
                 )
 
-    # 4. 'all_results'를 사용하여 전체 결과에 대한 엑셀 파일을 생성하고 MAE를 계산합니다.
+    # 4. Generate Excel file for all results using 'all_results' and calculate MAE.
     df = pd.DataFrame(all_results)
     mae = MAE_error(torch.tensor(df["prediction"].values), torch.tensor(df["ground truth"].values)).mean().item()
     print(f"\nOverall Test MAE: {mae:.4f}")
@@ -113,7 +114,7 @@ def main(args):
     df.to_excel(excel_path, index=False)
     print(f"Test results saved to {excel_path}")
 
-    # 5. 'plot_results'를 사용하여 '--n_samples' 개수만큼의 이미지만 그립니다.
+    # 5. Draw only '--n_samples' number of images using 'plot_results'.
     cols = 5
     rows = math.ceil(len(plot_results) / cols)
 
@@ -127,7 +128,7 @@ def main(args):
         ax.set_title(f"{f_name}\nGT:{s1.item():.1f} / Pred:{s2.item():.1f}", fontsize=8)
         ax.imshow(img.mul(torch.tensor([0.229, 0.224, 0.225])).add(torch.tensor([0.485, 0.456, 0.406])))
 
-    # 남은(비어 있는) subplot들은 감춥니다.
+    # Hide remaining (empty) subplots.
     for j in range(i + 1, len(axes)):
         axes[j].axis("off")
 
@@ -165,10 +166,10 @@ if __name__ == "__main__":
     if args_config.config:
         with open(args_config.config, "r") as f:
             cfg = yaml.safe_load(f)
-            # ckpt 경로가 config 파일과 커맨드 라인에 모두 있을 경우, 커맨드 라인 인자를 우선합니다.
-            # 이를 위해 cfg에서 ckpt를 미리 제거합니다.
-            if 'ckpt' in cfg:
-                del cfg['ckpt']
+            # If ckpt path exists in both config file and command line, command line argument takes precedence.
+            # To do this, remove ckpt from cfg in advance.
+            if "ckpt" in cfg:
+                del cfg["ckpt"]
             parser.set_defaults(**cfg)
 
     args = parser.parse_args(remaining)
@@ -180,7 +181,7 @@ if __name__ == "__main__":
         args.ordinal_bins = args.bins
 
     if args.exp_name:
-        # 실제 로그 디렉토리 이름은 ablation 옵션을 포함하여 생성
+        # Actual log directory name is created including ablation options
         baseline_exp_name = args.exp_name
         suffix = ""
         if args.no_enc:
