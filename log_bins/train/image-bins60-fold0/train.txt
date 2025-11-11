@@ -1,0 +1,10 @@
+sample_data/images/india/i_56.jpg	8.8
+sample_data/images/india/i_2.jpg	8.0
+sample_data/images/india/i_40.jpg	8.2
+sample_data/images/india/i_35.jpg	8.7
+sample_data/images/italy/25.jpg	8.7
+sample_data/images/italy/26.jpg	8.6
+sample_data/images/italy/105.jpg	7.0
+sample_data/images/india/i_1.jpg	12.2
+sample_data/images/india/i_4.jpg	8.3
+sample_data/images/italy/13.jpg	10.5

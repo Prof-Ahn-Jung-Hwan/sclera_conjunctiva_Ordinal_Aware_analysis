@@ -1,0 +1,6 @@
+full_path,w_filename,Hb,age,sex,Country
+sample_data/images/india/i_1.jpg,i_1,12.2,29,1.0,India
+sample_data/images/india/i_3.jpg,i_3,10.7,30,0.0,India
+sample_data/images/india/i_4.jpg,i_4,8.3,39,0.0,India
+sample_data/images/italy/9.jpg,9,9.8,61,1.0,Italy
+sample_data/images/italy/13.jpg,13,10.5,82,0.0,Italy

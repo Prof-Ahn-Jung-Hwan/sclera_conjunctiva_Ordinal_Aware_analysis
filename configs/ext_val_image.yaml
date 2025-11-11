@@ -1,0 +1,49 @@
+# Configuration for External Validation (Image-only Model)
+#
+# This file provides the base configuration for running zero-shot and few-shot
+# evaluations on external datasets using the `run_zero_shot_image_evaluation.sh`
+# and `run_few_shot_image_evaluation.sh` scripts.
+#
+# NOTE: These scripts are designed to demonstrate the evaluation process on the
+# provided sample data (a subset of the Eyes-Defy-Anemia dataset). They load
+# pre-trained models (e.g., image-bins76) and evaluate their performance.
+# Full reproduction of the paper's results requires the original internal training data.
+
+seed: 42
+
+# --- Dataset Settings ---
+# 'dataset: external' instructs the data loader to use `load_external_validation_dataset`,
+# which reads the CSV files specified within the evaluation scripts (e.g., src/test_external.py).
+dataset: 'external'
+
+# --- Model Settings (for the pre-trained image-only model) ---
+use_ordinal_regression: True
+use_encoder: True
+
+train_batch_size: 64
+test_batch_size: 128
+train_workers: 4
+test_workers: 0
+
+img_size: 224
+# This value is set to match the pre-trained 'image-bins76' model used for these evaluations.
+ordinal_bins: 76
+Hb_minima : 3
+Hb_maxima : 18
+disc_shift : 0
+
+epochs: 60
+start_ib_epoch: 31
+
+backbone : 'resnext50_32x4d'
+optimizer : 'sgd'
+scheduler: ''
+lr: 0.01
+
+weight_decay : 0.00005
+
+alpha: 0.01
+gamma: 1.5
+lambda_1: 0.000001
+lambda_2: 0.0001
+lambda_3: 1.5

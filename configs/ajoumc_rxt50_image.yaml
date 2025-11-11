@@ -1,0 +1,37 @@
+seed: 42
+
+# Dataset
+dataset : 'sample_data'
+# dataset_root is the project root. The dataloader will look for 'sample_data' inside it.
+dataset_root : './'
+
+# Model
+use_ordinal_regression : True
+use_encoder : True
+
+train_batch_size: 64
+test_batch_size: 128
+train_workers: 4
+test_workers: 0
+
+img_size: 224
+ordinal_bins : 60
+Hb_minima : 3
+Hb_maxima : 18
+disc_shift : 0
+
+epochs: 300
+start_ib_epoch: 150
+
+backbone : 'resnext50_32x4d'
+optimizer : 'sgd'
+scheduler: ''
+lr: 0.01
+
+weight_decay : 0.00005
+
+alpha: 0.01
+gamma: 1.5
+lambda_1: 0.000001
+lambda_2: 0.0001
+lambda_3: 1.5

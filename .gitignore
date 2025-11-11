@@ -1,0 +1,56 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Data files (exclude actual data but keep sample data)
+segmentation_wc_bc_new_github/
+data_used_raw_*.xlsx
+!sample_data/
+
+# External validation full datasets (keep only samples)
+# Uncomment after testing is complete:
+# external_india_wc_bc_resize/
+# external_italy_wc_bc_resize/
+
+# Trained models and logs
+logs/
+checkpoints/
+results/
+outputs/
+*.pth
+*.pt
+*.ckpt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp

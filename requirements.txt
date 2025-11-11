@@ -1,0 +1,21 @@
+# --- PyTorch and CUDA ---
+# The following versions were used for development (CUDA 12.8).
+# If you have a different CUDA version, please comment these lines out
+# and install the appropriate PyTorch version from https://pytorch.org/get-started/locally/
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.7.1
+torchvision==0.22.1
+
+# --- Core Libraries ---
+numpy
+pandas
+timm==1.0.15 # Pinned for stability
+einops
+scikit-learn
+Pillow
+PyYAML
+tqdm
+matplotlib
+openpyxl
+optuna
+scipy
