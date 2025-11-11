@@ -1,6 +1,6 @@
 # Non-invasive Hemoglobin Estimation from Conjunctival Images
 
-This repository contains the official PyTorch implementation for the paper "[Cross-Population Non-Invasive Hemoglobin Screening via Ordinal-Aware Sclera-Conjunctiva Co-Analysis]". Our work proposes a deep learning model, HbNet, for non-invasively estimating hemoglobin (Hb) levels from digital images of the conjunctiva.
+This repository contains the official PyTorch implementation for the paper "[Cross-Population Non-Invasive Hemoglobin Screening via Ordinal-Aware Sclera-Conjunctiva Co-Analysis]". Our work proposes a deep learning model, HbNet, for non-invasively estimating hemoglobin (Hb) levels from digital images of the sclera-conjunctiva.
 
 ## Overview
 
