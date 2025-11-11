@@ -170,4 +170,13 @@ We welcome academic and research collaboration. If you are interested in working
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details. The sample data is subject to the terms of use of the original Eyes-Defy-Anemia dataset.
+### Source Code
+This repository's source code is licensed under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/).
+- **Permitted:** academic research, internal benchmarking, and other non-commercial evaluation or comparison studies.
+- **Prohibited:** integrating the code into commercial products or services, or any use primarily intended for commercial advantage.
+
+### Documentation
+Unless otherwise indicated, the accompanying documentation in this repository follows the same PolyForm Noncommercial License 1.0.0.
+
+### Data
+The sample dataset under `sample_data/` remains subject to the original [Eyes-Defy-Anemia dataset terms](https://doi.org/10.21227/t5s2-4j73).
