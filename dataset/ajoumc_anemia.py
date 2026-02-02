@@ -16,16 +16,32 @@ class AjouMC_AnemiaDataset(Dataset):
         self.mode = mode
         self.w_filename = w_filename
 
+        # Updated augmentation pipeline for better performance
         self.transform = (
             T.Compose(
                 [
-                    T.Resize((int(args.img_size * 1.143), int(args.img_size * 1.143))),
-                    T.RandomCrop(args.img_size),
-                    T.RandomHorizontalFlip(),
-                    T.RandomRotation(30, expand=True),
                     T.Resize((args.img_size, args.img_size)),
-                    T.RandomPerspective(),
+                    T.RandomHorizontalFlip(p=0.5),
+                    T.RandomVerticalFlip(p=0.5),
+                    T.RandomApply([T.ElasticTransform(alpha=50.0, sigma=5.0)], p=0.4),
+                    T.RandomPerspective(distortion_scale=0.3, p=0.4),
+                    T.RandomApply(
+                        [
+                            T.RandomAffine(
+                                degrees=45,
+                                translate=(0.2, 0.2),
+                                scale=(0.7, 1.3),
+                                shear=15,
+                                interpolation=T.InterpolationMode.BILINEAR,
+                            )
+                        ],
+                        p=0.8,
+                    ),
+                    T.RandomApply([T.GaussianBlur(kernel_size=(3, 5), sigma=(0.1, 1.5))], p=0.3),
+                    T.RandomAdjustSharpness(sharpness_factor=1.5, p=0.3),
+                    T.RandomAdjustSharpness(sharpness_factor=0.5, p=0.3),
                     T.ToTensor(),
+                    T.RandomErasing(p=0.5, scale=(0.02, 0.15), ratio=(0.3, 3.3), value=0),
                     T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
                 ]
             )

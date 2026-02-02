@@ -111,6 +111,7 @@ def main(args):
     loss_fn = nn.L1Loss()
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=float(args.weight_decay))
+    scaler = torch.amp.GradScaler()  # Mixed precision training
 
     # --- Training and evaluation loop (similar to existing) ---
     xs, ys1, ys2 = [], [], []
@@ -120,7 +121,7 @@ def main(args):
     for epoch in range(args.epochs):
         adjust_learning_rate(optimizer, epoch, args)
 
-        train_result = train_one_epoch(args, train_dataloader, model, optimizer, loss_fn, epoch)
+        train_result = train_one_epoch(args, train_dataloader, model, optimizer, scaler, loss_fn, epoch)
         xs.append(epoch)
         ys1.append(train_result["train/loss"])
         ys2.append(train_result["train/mae"])
@@ -143,7 +144,7 @@ def main(args):
         torch.save({"state_dict": model.state_dict()}, os.path.join(args.log_dir, "last.ckpt"))
 
 
-def train_one_epoch(args, dataloader, model, optimizer, loss_fn, epoch):
+def train_one_epoch(args, dataloader, model, optimizer, scaler, loss_fn, epoch):
     model.train()
     pbar = tqdm(dataloader)
     log_losses, log_maes, seen = [], [], 0
@@ -153,11 +154,15 @@ def train_one_epoch(args, dataloader, model, optimizer, loss_fn, epoch):
         img, target = img.to(args.device), target.to(args.device)
         seen += len(target)
 
-        prediction = model(img)
-        loss = loss_fn(prediction, target)
+        # Mixed precision training with autocast
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            prediction = model(img)
+            loss = loss_fn(prediction, target)
 
-        loss.backward()
-        optimizer.step()
+        # Mixed precision backward and optimization
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
 
         mae_error = MAE_error(prediction, target)
         pbar.set_description(

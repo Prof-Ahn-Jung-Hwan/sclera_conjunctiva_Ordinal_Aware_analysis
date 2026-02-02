@@ -9,6 +9,13 @@ dataset_root : './'
 use_ordinal_regression : True
 use_encoder : True
 
+#### Eye selection option
+eye: 'exclusive'
+# eye: 'left' --> only left eye images (1)
+# eye: 'right' --> only right eye images (2)
+# eye: 'exclusive' --> only single pair of left and right eye images (1 and 2) except for patients having only one eye (1 or 2)
+# eye: 'random' --> random selection of left or right eye images (either 1 or 2)
+
 train_batch_size: 64
 test_batch_size: 128
 train_workers: 4
@@ -21,17 +28,29 @@ Hb_maxima : 18
 disc_shift : 0
 
 epochs: 300
-start_ib_epoch: 150
+start_ib_epoch: 301
 
 backbone : 'resnext50_32x4d'
-optimizer : 'sgd'
+
+#### Optimizer selection (adamw is recommended for best performance)
+# optimizer : 'sgd'
+optimizer : 'adamw'
 scheduler: ''
-lr: 0.01
 
-weight_decay : 0.00005
+# lr: 0.01 # for sgd
+lr: 0.00002 # for adamw
 
-alpha: 0.01
-gamma: 1.5
+# weight_decay : 0.00005 # for sgd
+weight_decay : 0.01 # for adamw
+
+#### Imbalance loss selection (not used when start_ib_epoch > epochs)
+imb_loss: 'ib_focal_loss'
+# imb_loss: 'ib_loss'
+# imb_loss: 'lda_loss'
+
+alpha: 100
+gamma: 1.0
+
 lambda_1: 0.000001
 lambda_2: 0.0001
 lambda_3: 1.5

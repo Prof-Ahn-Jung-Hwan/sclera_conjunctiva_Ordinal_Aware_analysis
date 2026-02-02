@@ -6,6 +6,18 @@ from ordinal_regression import OrdinalReweightingLoss, encode_ordinal
 
 
 class AnemiaLoss:
+    """
+    Combined loss function for anemia estimation.
+    
+    Training objective: L_TOTAL = λ₃·L_CLS + λ₁·L_global + λ₂·L_proto
+    where:
+    - L_CLS: Rank-consistent ordinal regression loss (Cross-Entropy based)
+    - L_global: Global regularization (L2 norm of latent mean)
+    - L_proto: Prototype regularization (MMD loss between latent and prior)
+    - λ₃ = 1.5 (default)
+    
+    Reference: Section 4.4.4 and Supplementary Method S9
+    """
     def __init__(self, args, per_cls_weights):
         self.args = args
 

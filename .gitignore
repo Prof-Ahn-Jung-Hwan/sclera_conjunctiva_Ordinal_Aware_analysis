@@ -39,6 +39,8 @@ data_used_raw_*.xlsx
 
 # Trained models and logs
 logs/
+log_bins/
+bins_optimization_only_image/
 checkpoints/
 results/
 outputs/

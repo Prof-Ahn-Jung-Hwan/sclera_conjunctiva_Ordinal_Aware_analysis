@@ -228,6 +228,7 @@ def main(args):
             print("Encoder frozen for few-shot learning")
 
         optimizer, scheduler = create_optimizer(args, model, len(train_dataloader))
+        scaler = torch.amp.GradScaler()  # Mixed precision training
         loss_fn = AnemiaLoss(args, per_cls_weights)
 
         xs, ys1, ys2 = [], [], []
@@ -240,7 +241,7 @@ def main(args):
             adjust_learning_rate(optimizer, epoch, args)
 
             train_result, global_step = train_one_epoch(
-                args, train_dataloader, model, optimizer, loss_fn, scheduler, epoch, global_step
+                args, train_dataloader, model, optimizer, scaler, loss_fn, scheduler, epoch, global_step
             )
 
             xs.append(epoch)
@@ -293,7 +294,7 @@ def main(args):
     print(f"{'='*80}")
 
 
-def train_one_epoch(args, dataloader, model, optimizer, loss_fn, scheduler, epoch, global_step):
+def train_one_epoch(args, dataloader, model, optimizer, scaler, loss_fn, scheduler, epoch, global_step):
     model.train()
     pbar = tqdm(dataloader)
     log_losses = []
@@ -304,17 +305,24 @@ def train_one_epoch(args, dataloader, model, optimizer, loss_fn, scheduler, epoc
         img, target, anno = img.to(args.device), target.to(args.device), anno.to(args.device)
         seen += len(target)
         label = encode_ordinal(args, target).long()
-        model_out = model(img, label=label)
-        loss = loss_fn(model_out, target, epoch >= args.start_ib_epoch)
+        
+        # Mixed precision training with autocast
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            model_out = model(img, label=label)
+            loss = loss_fn(model_out, target, epoch >= args.start_ib_epoch)
 
         if torch.isnan(loss):
             print(f"NaN loss detected at epoch {epoch}, skipping step")
             optimizer.zero_grad()
             continue
 
-        loss.backward()
+        # Mixed precision backward and optimization
+        scaler.scale(loss).backward()
+        scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
+        
         if scheduler is not None:
             scheduler.step_update(global_step)
 

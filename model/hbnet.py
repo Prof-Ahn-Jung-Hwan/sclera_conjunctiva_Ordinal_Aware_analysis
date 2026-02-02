@@ -35,25 +35,16 @@ class HbNet(nn.Module):
             nn.init.orthogonal_(z_prior, gain=1.3)
             self.register_buffer("z_prior", z_prior)
 
+        # Use DropPath for better regularization during training
         self.drop_path = DropPath(0.1)
 
-        # --- Final Classifier/Regressor Head (Dynamically configured) ---
-        # This block determines the final output layer based on the loss function.
-        is_ce_loss = hasattr(args, 'loss_type') and args.loss_type == 'cross_entropy'
-
-        if self.use_ordinal_regression and not is_ce_loss:
-            # Original Ordinal Regression (using custom Head)
+        if args.use_ordinal_regression:
             self.head = Head(self.out_dim, (self.ordinal_bins - 1) * 2)
-        elif is_ce_loss:
-            # For Cross-Entropy, output logits for C classes.
-            self.head = nn.Linear(self.out_dim, args.ordinal_bins)
         else:
-            # For simple regression, output a single continuous value.
             self.head = nn.Linear(self.out_dim, 1)
 
     def forward(self, img, label=None, **kwargs):
-        is_ce_loss = hasattr(self.args, 'loss_type') and self.args.loss_type == 'cross_entropy'
-        if self.use_ordinal_regression and not is_ce_loss and self.training:
+        if self.use_ordinal_regression and self.training:
             assert label is not None
 
         z = self.backbone(img)
@@ -81,16 +72,13 @@ class HbNet(nn.Module):
             z = self.encoder(z)
         z = self.drop_path(z)
 
-        # --- Calculate logits through appropriate Head ---
-        if self.use_ordinal_regression and not is_ce_loss:
-            # Ordinal Regression
+        if self.use_ordinal_regression:
             logits = self.head(z, label)
             logits = rearrange(logits, "B (K P) -> B K P", P=2)
-            # ord_k is for inference/logging, so gradient calculation is not needed.
+            # ord_k is for inference/logging, gradient calculation is not needed
             with torch.no_grad():
                 ord_k = F.relu(logits.softmax(-1).argmax(-1).sum(-1, keepdim=True) - 1).int()
         else:
-            # Cross-Entropy or simple regression
             logits = self.head(z)
             ord_k = None
 

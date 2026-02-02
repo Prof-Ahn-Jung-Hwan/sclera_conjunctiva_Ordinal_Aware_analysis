@@ -68,6 +68,7 @@ def main(args):
 
     model = HbNet(args).to(args.device)
     optimizer, scheduler = create_optimizer(args, model, len(train_dataloader))
+    scaler = torch.amp.GradScaler()  # Mixed precision training
     loss_fn = AnemiaLoss(args, per_cls_weights)
 
     xs, ys1, ys2 = [], [], []
@@ -84,11 +85,13 @@ def main(args):
     # # ---
 
     global_step = 0
+    training_start_time = time.time()  # Track total training time
+    
     for epoch in range(args.epochs):
         adjust_learning_rate(optimizer, epoch, args)
 
         train_result, global_step = train_one_epoch(
-            args, train_dataloader, model, optimizer, loss_fn, scheduler, epoch, global_step
+            args, train_dataloader, model, optimizer, scaler, loss_fn, scheduler, epoch, global_step
         )
 
         xs.append(epoch)
@@ -143,9 +146,22 @@ def main(args):
             },
             os.path.join(args.log_dir, "last.ckpt"),
         )
+    
+    # Track total training time
+    training_end_time = time.time()
+    total_training_time = training_end_time - training_start_time
+    hours = int(total_training_time // 3600)
+    minutes = int((total_training_time % 3600) // 60)
+    seconds = int(total_training_time % 60)
+    
+    print("\n" + "="*60)
+    print(f"Training completed!")
+    print(f"Total training time: {hours:02d}h {minutes:02d}m {seconds:02d}s ({total_training_time:.2f} seconds)")
+    print(f"Best validation MAE: {best_test_mae:.4f} at epoch {best_epoch}")
+    print("="*60)
 
 
-def train_one_epoch(args, dataloader, model, optimizer, loss_fn, scheduler, epoch, global_step):
+def train_one_epoch(args, dataloader, model, optimizer, scaler, loss_fn, scheduler, epoch, global_step):
     model.train()
     pbar = tqdm(dataloader, desc=f"[{epoch}/{args.epochs}]")  # Modified tqdm description
     log_losses = []
@@ -156,11 +172,19 @@ def train_one_epoch(args, dataloader, model, optimizer, loss_fn, scheduler, epoc
         img, target = img.to(args.device), target.to(args.device)
         seen += len(target)
         label = encode_ordinal(args, target).long()
-        model_out = model(img, label=label)
-        loss = loss_fn(model_out, target, epoch >= args.start_ib_epoch)
+        
+        # Mixed precision training with autocast
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            model_out = model(img, label=label)
+            loss = loss_fn(model_out, target, epoch >= args.start_ib_epoch)
 
-        loss.backward()
-        optimizer.step()
+        # Mixed precision backward and optimization
+        scaler.scale(loss).backward()
+        scaler.unscale_(optimizer)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 5)  # Gradient clipping for stability
+        scaler.step(optimizer)
+        scaler.update()
+        
         if scheduler is not None:
             scheduler.step_update(global_step)
 
